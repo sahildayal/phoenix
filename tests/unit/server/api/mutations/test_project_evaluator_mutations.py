@@ -2,10 +2,11 @@ from secrets import token_hex
 from typing import Any
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from strawberry.relay import GlobalID
 
 from phoenix.db import models
+from phoenix.server.online_eval.criteria_resolution import stamp_work_materialized
 from phoenix.server.types import DbSessionFactory
 from tests.unit.graphql import AsyncGraphQLClient
 
@@ -881,11 +882,13 @@ async def test_evaluation_delay_rejected_before_project_evaluator_writes(
         assert llm_criteria.evaluation_delay_seconds == 300
 
 
-async def test_evaluation_target_change_rejected_after_work_exists(
+async def test_evaluation_target_change_rejected_after_work_was_materialized(
     gql_client: AsyncGraphQLClient,
     db: DbSessionFactory,
     sandbox_config: models.SandboxConfig,
 ) -> None:
+    """The lock outlives the work rows: retention deletes span work, so a lock read
+    from row presence would silently release after a quiet retention window."""
     project = await _add_project(db)
     create_input = _code_create_input(project, sandbox_config)
     create_result = await gql_client.execute(_CREATE_CODE, {"input": create_input})
@@ -907,6 +910,21 @@ async def test_evaluation_target_change_rejected_after_work_exists(
                 config_fingerprint="existing-work",
             )
         )
+        await session.flush()
+        await stamp_work_materialized(session, criteria.id)
+        # Retention deletes terminal work rows; the stamp is what survives.
+        await session.execute(
+            delete(models.EvalWorkUnit).where(models.EvalWorkUnit.criteria_id == criteria.id)
+        )
+
+    async with db() as session:
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(models.EvalWorkUnit)
+                .where(models.EvalWorkUnit.criteria_id == criteria_id)
+            )
+        ) == 0
 
     update_result = await gql_client.execute(
         _UPDATE_CODE,

@@ -38,7 +38,10 @@ from phoenix.db.eval_work import live_eval_work_index_predicate
 from phoenix.db.helpers import SupportedSQLDialect
 from phoenix.db.insertion.helpers import OnConflict, insert_on_conflict
 from phoenix.server.online_eval.coordinator import LEASE_ATTEMPTS_EXHAUSTED_ERROR
-from phoenix.server.online_eval.criteria_resolution import resolve_criteria
+from phoenix.server.online_eval.criteria_resolution import (
+    resolve_criteria,
+    stamp_work_materialized,
+)
 from phoenix.server.online_eval.db_coordinator import work_unit_lease_lapsed
 from phoenix.server.online_eval.derivation import MAX_ATTEMPTS, config_fingerprint
 from phoenix.server.online_eval.session_policy import session_criteria_is_schedulable
@@ -395,6 +398,7 @@ class SessionEvalSweeper(DaemonTask):
         inserted_count = 0
         for criteria_id, rowids in rowids_by_criteria.items():
             criterion = criteria_by_id[criteria_id]
+            await stamp_work_materialized(session, criteria_id)
             for start in range(0, len(rowids), _SESSION_WORK_INSERT_BATCH_SIZE):
                 result = await session.execute(
                     _session_work_insert_statement(
