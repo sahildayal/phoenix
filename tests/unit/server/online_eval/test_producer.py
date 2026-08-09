@@ -30,6 +30,7 @@ from phoenix.server.online_eval.coordinator import (
     LEASE_ATTEMPTS_EXHAUSTED_ERROR,
     LEASE_TTL_SECONDS,
 )
+from phoenix.server.online_eval.criteria_resolution import resolve_criteria
 from phoenix.server.online_eval.db_coordinator import DbEvalWorkCoordinator
 from phoenix.server.online_eval.derivation import (
     MAX_ATTEMPTS,
@@ -37,10 +38,7 @@ from phoenix.server.online_eval.derivation import (
     annotation_identifier,
     config_fingerprint,
 )
-from phoenix.server.online_eval.producer import (
-    OnlineEvalProducer,
-    resolve_criteria,
-)
+from phoenix.server.online_eval.producer import OnlineEvalProducer
 from phoenix.server.types import DbSessionFactory
 
 from ..._helpers import _add_project, _add_span, _add_trace
