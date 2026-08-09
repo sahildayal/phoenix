@@ -87,9 +87,7 @@ from phoenix.config import (
     get_env_online_eval_max_sandbox_payload_bytes,
     get_env_online_eval_max_transcript_bytes,
     get_env_online_eval_pending_ttl_seconds,
-    get_env_online_eval_session_consumer_concurrency,
     get_env_online_eval_session_sweep_enabled,
-    get_env_online_eval_span_consumer_concurrency,
     get_env_phoenix_agents_disable_bash,
     get_env_port,
     get_env_support_email,
@@ -1095,7 +1093,6 @@ def create_app(
             event_queue=dml_event_handler,
             tick_interval_seconds=tick_interval_seconds,
             claim_batch_size=claim_batch_size,
-            max_concurrency=get_env_online_eval_span_consumer_concurrency(),
             evaluator_semaphore=evaluator_semaphore,
             db_semaphore=db_semaphore,
         )
@@ -1110,7 +1107,6 @@ def create_app(
                 evaluation_target="SESSION",
                 tick_interval_seconds=tick_interval_seconds,
                 claim_batch_size=claim_batch_size,
-                max_concurrency=get_env_online_eval_session_consumer_concurrency(),
                 evaluator_semaphore=evaluator_semaphore,
                 db_semaphore=db_semaphore,
             )
