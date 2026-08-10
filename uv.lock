@@ -17,6 +17,7 @@ exclude-newer-span = "P3D"
 
 [options.exclude-newer-package]
 arize-phoenix-otel = "2099-12-31T00:00:00Z"
+arize-phoenix-common = "2099-12-31T00:00:00Z"
 arize-phoenix-evals = "2099-12-31T00:00:00Z"
 arize-phoenix-client = "2099-12-31T00:00:00Z"
 arize-phoenix-sqlean = "2099-12-31T00:00:00Z"
@@ -25,6 +26,7 @@ arize-phoenix-sqlean = "2099-12-31T00:00:00Z"
 members = [
     "arize-phoenix",
     "arize-phoenix-client",
+    "arize-phoenix-common",
     "arize-phoenix-evals",
     "arize-phoenix-otel",
 ]
@@ -886,6 +888,7 @@ name = "arize-phoenix-client"
 version = "2.13.0"
 source = { editable = "packages/phoenix-client" }
 dependencies = [
+    { name = "arize-phoenix-common" },
     { name = "httpx" },
     { name = "openinference-instrumentation" },
     { name = "openinference-semantic-conventions" },
@@ -905,6 +908,7 @@ pytest = [
 
 [package.metadata]
 requires-dist = [
+    { name = "arize-phoenix-common", editable = "packages/phoenix-common" },
     { name = "arize-phoenix-evals", marker = "extra == 'evals'", editable = "packages/phoenix-evals" },
     { name = "httpx" },
     { name = "openinference-instrumentation", specifier = ">=0.1.20" },
@@ -918,10 +922,27 @@ requires-dist = [
 provides-extras = ["pytest", "evals"]
 
 [[package]]
+name = "arize-phoenix-common"
+version = "0.1.0"
+source = { editable = "packages/phoenix-common" }
+dependencies = [
+    { name = "tqdm" },
+    { name = "typing-extensions" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "tqdm" },
+    { name = "typing-extensions", specifier = ">=4.5,<5" },
+]
+provides-extras = ["test"]
+
+[[package]]
 name = "arize-phoenix-evals"
 version = "3.4.0"
 source = { editable = "packages/phoenix-evals" }
 dependencies = [
+    { name = "arize-phoenix-common" },
     { name = "jsonpath-ng" },
     { name = "openinference-instrumentation" },
     { name = "openinference-semantic-conventions" },
@@ -959,6 +980,7 @@ test = [
 requires-dist = [
     { name = "anthropic", marker = "extra == 'dev'", specifier = ">0.18.0" },
     { name = "anthropic", marker = "extra == 'test'", specifier = ">=0.18.0" },
+    { name = "arize-phoenix-common", editable = "packages/phoenix-common" },
     { name = "boto3", marker = "extra == 'dev'" },
     { name = "boto3", marker = "extra == 'test'" },
     { name = "jsonpath-ng" },
