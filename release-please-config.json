@@ -32,6 +32,10 @@
             "package-name": "arize-phoenix-client",
             "release-type": "python"
         },
+        "packages/phoenix-common": {
+            "package-name": "arize-phoenix-common",
+            "release-type": "python"
+        },
         "packages/phoenix-evals": {
             "package-name": "arize-phoenix-evals",
             "release-type": "python"
