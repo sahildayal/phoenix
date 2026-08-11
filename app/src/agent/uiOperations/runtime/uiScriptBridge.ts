@@ -1,9 +1,21 @@
 import { getUiOperationDescriptor } from "../catalog";
-import { dispatchUiOperationCall } from "../dispatch";
+import type { UiOperationResult } from "../types";
 import type {
   UiScriptMessageToMain,
   UiScriptMessageToWorker,
 } from "./protocol";
+
+/**
+ * Executes one `ui.*` call from a running script. The `execute_ui` tool
+ * builds this by binding `dispatchUiOperationCall` to its tool-call context
+ * (agent store, session, capabilities).
+ */
+export type UiScriptDispatchCall = (call: {
+  operationName: string;
+  input: unknown;
+  /** Monotonic 1-based sequence of this call within the script run. */
+  callSequence: number;
+}) => Promise<UiOperationResult>;
 
 /** Wall-clock budget for one script, excluding time spent awaiting approvals. */
 export const DEFAULT_UI_SCRIPT_TIMEOUT_MS = 30_000;
@@ -59,19 +71,24 @@ export function createUiScriptWorker(): UiScriptWorkerLike {
  * @param params.createWorker - worker factory (injectable for tests)
  * @param params.timeoutMs - wall-clock budget, excluding approval waits
  * @param params.maxCalls - maximum `ui.*` calls before the run is failed
+ * @param params.registerAbort - receives a callback that force-fails the run
+ *   (chat interrupt / session teardown); the worker is terminated and the
+ *   run resolves `ok: false`
  */
 export function runUiScript({
   script,
-  dispatchCall = dispatchUiOperationCall,
+  dispatchCall,
   createWorker = createUiScriptWorker,
   timeoutMs = DEFAULT_UI_SCRIPT_TIMEOUT_MS,
   maxCalls = DEFAULT_MAX_UI_CALLS_PER_SCRIPT,
+  registerAbort,
 }: {
   script: string;
-  dispatchCall?: typeof dispatchUiOperationCall;
+  dispatchCall: UiScriptDispatchCall;
   createWorker?: () => UiScriptWorkerLike;
   timeoutMs?: number;
   maxCalls?: number;
+  registerAbort?: (abort: (reason: string) => void) => void;
 }): Promise<UiScriptRunResult> {
   return new Promise((resolveRun) => {
     const logs: string[] = [];
@@ -147,6 +164,7 @@ export function runUiScript({
       const result = await dispatchCall({
         operationName: message.operationName,
         input: message.input,
+        callSequence: message.callId,
       });
       if (isApprovalCall && !isSettled) {
         armTimer();
@@ -181,6 +199,10 @@ export function runUiScript({
           void handleOperationCall(message);
           break;
       }
+    });
+
+    registerAbort?.((reason) => {
+      settle({ ok: false, error: reason, callCount, logs });
     });
 
     armTimer();

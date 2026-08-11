@@ -1,7 +1,4 @@
-import {
-  EDIT_CODE_EVALUATOR_DRAFT_NAVIGATION_CANCEL_ERROR,
-  EDIT_CODE_EVALUATOR_DRAFT_TOOL_NAME,
-} from "./constants";
+import { EDIT_CODE_EVALUATOR_DRAFT_NAVIGATION_CANCEL_ERROR } from "./constants";
 import type {
   BindPendingCodeEvaluatorEditOptions,
   PendingCodeEvaluatorEdit,
@@ -10,7 +7,7 @@ import type {
 export function bindPendingCodeEvaluatorEditActions({
   pendingEdit,
   draftHost,
-  addToolOutput,
+  emitResult,
   setPendingCodeEvaluatorEdit,
 }: BindPendingCodeEvaluatorEditOptions): PendingCodeEvaluatorEdit {
   return {
@@ -19,18 +16,11 @@ export function bindPendingCodeEvaluatorEditActions({
       setPendingCodeEvaluatorEdit(pendingEdit.toolCallId, null);
       const applied = draftHost.applyOperations(pendingEdit.operations);
       if (!applied.ok) {
-        await addToolOutput({
-          state: "output-error",
-          tool: EDIT_CODE_EVALUATOR_DRAFT_TOOL_NAME,
-          toolCallId: pendingEdit.toolCallId,
-          errorText: applied.error,
-        });
+        emitResult({ ok: false, error: applied.error });
         return;
       }
-      await addToolOutput({
-        state: "output-available",
-        tool: EDIT_CODE_EVALUATOR_DRAFT_TOOL_NAME,
-        toolCallId: pendingEdit.toolCallId,
+      emitResult({
+        ok: true,
         output: {
           status: "accepted",
           acceptedBy: approvalSource,
@@ -43,10 +33,8 @@ export function bindPendingCodeEvaluatorEditActions({
     },
     reject: async () => {
       setPendingCodeEvaluatorEdit(pendingEdit.toolCallId, null);
-      await addToolOutput({
-        state: "output-available",
-        tool: EDIT_CODE_EVALUATOR_DRAFT_TOOL_NAME,
-        toolCallId: pendingEdit.toolCallId,
+      emitResult({
+        ok: true,
         output: {
           status: "rejected",
           message: "User rejected the proposed code-evaluator draft edit.",
@@ -55,12 +43,9 @@ export function bindPendingCodeEvaluatorEditActions({
     },
     cancel: async () => {
       setPendingCodeEvaluatorEdit(pendingEdit.toolCallId, null);
-      await addToolOutput({
-        state: "output-error",
-        tool: EDIT_CODE_EVALUATOR_DRAFT_TOOL_NAME,
-        toolCallId: pendingEdit.toolCallId,
-        errorText: EDIT_CODE_EVALUATOR_DRAFT_NAVIGATION_CANCEL_ERROR,
-        outcome: "interrupted",
+      emitResult({
+        ok: false,
+        error: EDIT_CODE_EVALUATOR_DRAFT_NAVIGATION_CANCEL_ERROR,
       });
     },
   };

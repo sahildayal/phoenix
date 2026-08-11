@@ -45,8 +45,9 @@ export const searchUiAgentTool = defineTool<SearchUiInput>({
   parseInput: parseSearchUiInput,
   invalidInputErrorText:
     "Invalid search_ui input. Expected { query?: string, mountedOnly?: boolean }.",
-  execute: async ({ toolCall, input, addToolOutput }) => {
+  execute: async ({ toolCall, input, addToolOutput, agentStore }) => {
     const results = searchUiOperations({
+      agentStore,
       query: input.query,
       mountedOnly: input.mountedOnly ?? false,
     });

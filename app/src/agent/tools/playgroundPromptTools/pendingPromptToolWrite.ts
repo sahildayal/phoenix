@@ -1,7 +1,4 @@
-import {
-  WRITE_PROMPT_TOOLS_NAVIGATION_CANCEL_ERROR,
-  WRITE_PROMPT_TOOLS_TOOL_NAME,
-} from "./constants";
+import { WRITE_PROMPT_TOOLS_NAVIGATION_CANCEL_ERROR } from "./constants";
 import { applyWritePromptTools } from "./promptToolsStore";
 import type {
   BindPendingPromptToolWriteOptions,
@@ -9,16 +6,17 @@ import type {
 } from "./types";
 
 /**
- * Attaches accept/reject/cancel callbacks to a pending tool-write batch using
- * the live AI SDK tool-call context that created the proposal. Mirrors
- * `bindPendingPromptEditActions`: the batch is re-applied on accept (which
- * re-checks the revision against the current store), so a tool list that
- * drifted between propose and accept is rejected with the stale error.
+ * Attaches accept/reject/cancel callbacks to a pending tool-write batch. Each
+ * callback resolves the awaiting `execute_ui` script call via `emitResult`;
+ * see `bindPendingPromptEditActions` for the result contract. The batch is
+ * re-applied on accept (which re-checks the revision against the current
+ * store), so a tool list that drifted between propose and accept is rejected
+ * with the stale error.
  */
 export function bindPendingPromptToolWriteActions({
   pendingWrite,
   playgroundStore,
-  addToolOutput,
+  emitResult,
   setPendingPromptToolWrite,
 }: BindPendingPromptToolWriteOptions): PendingPromptToolWrite {
   return {
@@ -32,12 +30,10 @@ export function bindPendingPromptToolWriteActions({
         currentInstance != null &&
         currentInstance.model.provider !== pendingWrite.provider
       ) {
-        await addToolOutput({
-          state: "output-error",
-          tool: WRITE_PROMPT_TOOLS_TOOL_NAME,
-          toolCallId: pendingWrite.toolCallId,
-          errorText:
-            "The playground provider changed after this prompt tool diff was proposed. Please run write_prompt_tools again so the diff can be reviewed in the current provider format.",
+        emitResult({
+          ok: false,
+          error:
+            "The playground provider changed after this prompt tool diff was proposed. Please run playground.prompt.tools.write again so the diff can be reviewed in the current provider format.",
         });
         return;
       }
@@ -46,18 +42,11 @@ export function bindPendingPromptToolWriteActions({
         input: pendingWrite.input,
       });
       if (!result.ok) {
-        await addToolOutput({
-          state: "output-error",
-          tool: WRITE_PROMPT_TOOLS_TOOL_NAME,
-          toolCallId: pendingWrite.toolCallId,
-          errorText: result.error,
-        });
+        emitResult({ ok: false, error: result.error });
         return;
       }
-      await addToolOutput({
-        state: "output-available",
-        tool: WRITE_PROMPT_TOOLS_TOOL_NAME,
-        toolCallId: pendingWrite.toolCallId,
+      emitResult({
+        ok: true,
         output: {
           status: "accepted",
           acceptedBy: approvalSource,
@@ -72,10 +61,8 @@ export function bindPendingPromptToolWriteActions({
     },
     reject: async () => {
       setPendingPromptToolWrite(pendingWrite.toolCallId, null);
-      await addToolOutput({
-        state: "output-available",
-        tool: WRITE_PROMPT_TOOLS_TOOL_NAME,
-        toolCallId: pendingWrite.toolCallId,
+      emitResult({
+        ok: true,
         output: {
           status: "rejected",
           instanceId: pendingWrite.instanceId,
@@ -85,12 +72,9 @@ export function bindPendingPromptToolWriteActions({
     },
     cancel: async () => {
       setPendingPromptToolWrite(pendingWrite.toolCallId, null);
-      await addToolOutput({
-        state: "output-error",
-        tool: WRITE_PROMPT_TOOLS_TOOL_NAME,
-        toolCallId: pendingWrite.toolCallId,
-        errorText: WRITE_PROMPT_TOOLS_NAVIGATION_CANCEL_ERROR,
-        outcome: "interrupted",
+      emitResult({
+        ok: false,
+        error: WRITE_PROMPT_TOOLS_NAVIGATION_CANCEL_ERROR,
       });
     },
   };

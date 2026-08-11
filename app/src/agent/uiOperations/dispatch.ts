@@ -1,37 +1,52 @@
 import { z } from "zod";
 
-import type { AgentClientActionResult } from "@phoenix/store/agentStore";
+import type { AgentCapabilities } from "@phoenix/agent/extensions/capabilities";
+import type { AgentStore } from "@phoenix/store/agentStore";
 
 import {
   getMountedUiOperationHandler,
   getUiOperationDescriptor,
   suggestUiOperationNames,
 } from "./catalog";
+import type { UiOperationCallContext, UiOperationResult } from "./types";
+
+/** Everything dispatch needs from the enclosing `execute_ui` tool call. */
+export type UiOperationDispatchContext = {
+  agentStore: AgentStore;
+  sessionId: string | null;
+  capabilities: AgentCapabilities;
+};
 
 /**
  * Execute one operation call on behalf of a running `execute_ui` script.
  *
  * This is the single choke point every scripted effect flows through:
- * catalog lookup → mounted check → schema validation → handler invocation.
- * It is the relocated core of `defineClientActionTool`'s execute path, run
- * once per `ui.*` call instead of once per tool call.
+ * catalog lookup → capability gate → session gate → mounted check → schema
+ * validation → handler invocation. It is the relocated core of the retired
+ * `defineClientActionTool` execute path, run once per `ui.*` call instead of
+ * once per tool call.
  *
  * Every failure mode returns an actionable `{ ok: false }` result (never
  * throws), so the calling script can branch on errors and the model can
  * recover — e.g. by calling `search_ui` after an unknown-operation error.
- *
- * RFC scope note: the real implementation also enforces the descriptor's
- * `requiredCapabilities` / `requireSession` here, composing the same guards
- * `defineClientActionTool` uses today (`requireToolSession`, the kernel
- * capability gate). Omitted here to keep the RFC reviewable.
  */
 export async function dispatchUiOperationCall({
   operationName,
   input,
+  callId,
+  agentStore,
+  sessionId,
+  capabilities,
 }: {
   operationName: string;
   input: unknown;
-}): Promise<AgentClientActionResult> {
+  /**
+   * Unique id for this invocation, `<executeUiToolCallId>:<sequence>`.
+   * Approval handlers key their pending-approval entries by it, and
+   * interrupt cleanup cancels pending entries by tool-call-id prefix.
+   */
+  callId: string;
+} & UiOperationDispatchContext): Promise<UiOperationResult> {
   const descriptor = getUiOperationDescriptor(operationName);
   if (descriptor == null) {
     const suggestions = suggestUiOperationNames(operationName).join(", ");
@@ -43,7 +58,24 @@ export async function dispatchUiOperationCall({
     };
   }
 
-  const handler = getMountedUiOperationHandler(operationName);
+  const missingCapability = (descriptor.requiredCapabilities ?? []).find(
+    (capability) => !capabilities[capability]
+  );
+  if (missingCapability != null) {
+    return {
+      ok: false,
+      error: `Operation "${operationName}" requires the disabled capability "${missingCapability}".`,
+    };
+  }
+
+  if (descriptor.requireSession && sessionId == null) {
+    return {
+      ok: false,
+      error: `Operation "${operationName}" requires an active session.`,
+    };
+  }
+
+  const handler = getMountedUiOperationHandler(agentStore, operationName);
   if (handler == null) {
     const routeHint = descriptor.availability?.routeHint;
     return {
@@ -62,8 +94,10 @@ export async function dispatchUiOperationCall({
     };
   }
 
+  const context: UiOperationCallContext = { callId, sessionId };
+
   try {
-    const result = await handler(parsed.data);
+    const result = await handler(parsed.data, context);
     if (result.ok && result.output == null) {
       return { ok: true, output: descriptor.defaultSuccessOutput ?? "Done." };
     }
