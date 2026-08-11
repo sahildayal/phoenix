@@ -1,5 +1,12 @@
 # Changelog
 
+## [20.0.1](https://github.com/Arize-ai/phoenix/compare/arize-phoenix-v20.0.0...arize-phoenix-v20.0.1) (2026-08-11)
+
+
+### Documentation
+
+* add v20.0.0 entry to MIGRATION.md ([#15346](https://github.com/Arize-ai/phoenix/issues/15346)) ([355ebea](https://github.com/Arize-ai/phoenix/commit/355ebeac186579d3aab4715b67e03593ae1544aa))
+
 ## [20.0.0](https://github.com/Arize-ai/phoenix/compare/arize-phoenix-v19.21.0...arize-phoenix-v20.0.0) (2026-08-11)
 
 
